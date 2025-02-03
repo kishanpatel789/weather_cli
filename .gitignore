@@ -1,0 +1,6 @@
+notes.md
+.python-version
+*.swp
+venv/
+.env
+data/
