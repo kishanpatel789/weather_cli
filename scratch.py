@@ -11,7 +11,6 @@ load_dotenv()
 LAT = os.environ["LAT"]
 LON = os.environ["LON"]
 API_KEY = os.environ["API_KEY"]
-API_KEY_METEO = os.environ["API_KEY_METEO"]
 
 dir_data = Path(__file__).parent / "data"
 # %%
@@ -56,12 +55,3 @@ response.raise_for_status()
 response.json()
 
 # %%
-# test meteo data
-url = f"https://meteosource.com/api/v1/free/point?lat={LAT}&lon={LON}&key={API_KEY_METEO}&units=metric"
-response = requests.get(url)
-response.raise_for_status()
-response.json()
-
-# %%
-with open(dir_data / "output_meteo.json", "w") as f:
-    json.dump(response.json(), f, indent=4)
