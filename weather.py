@@ -1,35 +1,24 @@
-# %%
-import os
-import json
-from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 import requests
-from dotenv import load_dotenv
 import yaml
 
-# %%
-# load env vars
-load_dotenv()
-LAT = os.environ["LAT"]
-LON = os.environ["LON"]
-API_KEY = os.environ["API_KEY"]
-UNITS = os.environ.get("UNITS", "metric")
-NUM_DAYS = int(os.environ.get("NUM_DAYS", 3))
-BASE_URL = "https://api.openweathermap.org/data/2.5"
 
-# %% 
-# load yaml config
 def load_config(config_path="config.yaml"):
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    required_keys = ["lat", "lon", "api_key",]
+    required_keys = [
+        "lat",
+        "lon",
+        "api_key",
+    ]
     for key in required_keys:
         if key not in config["weather"]:
             raise ValueError(f"Missing required config key: {key}")
-    
+
     return config["weather"]
+
 
 config = load_config()
 LAT = config["lat"]
@@ -39,42 +28,19 @@ UNITS = config.get("units", "metric")
 NUM_DAYS = int(config.get("num_days", 3))
 BASE_URL = config.get("base_url", "https://api.openweathermap.org/data/2.5")
 
-# %%
-dir_data = Path(__file__).parent / "data"
-# %%
 # get current weather
 url = f"{BASE_URL}/weather?lat={LAT}&lon={LON}&appid={API_KEY}&units={UNITS}"
-
 response = requests.get(url)
 response.raise_for_status()
 current_weather = response.json()
 
-# %%
-with open(dir_data / "output_current.json", "w") as f:
-    json.dump(current_weather, f, indent=4)
-
-
-# %%
 # get forecast
 url = f"{BASE_URL}/forecast?lat={LAT}&lon={LON}&appid={API_KEY}&units={UNITS}&cnt={NUM_DAYS*8}"
-
 response2 = requests.get(url)
 response2.raise_for_status()
 forecast_weather = response2.json()
-# %%
-with open(dir_data / "output_forecast.json", "w") as f:
-    json.dump(forecast_weather, f, indent=4)
 
 
-# %%
-# read cached response
-with open(dir_data / "output_current.json", "r") as f:
-    current_weather = json.load(f)
-with open(dir_data / "output_forecast.json", "r") as f:
-    forecast_weather = json.load(f)
-
-
-# %%
 # extract relevant data
 def process_datetime(data_dt: int, data_tz: int) -> datetime:
     datetime_utc = datetime.fromtimestamp(data_dt, timezone.utc)
@@ -139,14 +105,6 @@ def generate_forecast_weather_output(w: dict) -> str:
     return "\n".join(line_items)
 
 
-print(generate_current_weather_output(current_weather))
-print(generate_forecast_weather_output(forecast_weather))
-
-# %%
-# test city search
-url = f"https://api.openweathermap.org/data/2.5/weather?q=Valley+Ranch,TX,US&appid={API_KEY}&units=metric"
-response = requests.get(url)
-response.raise_for_status()
-response.json()
-
-# %%
+if __name__ == "__main__":
+    print(generate_current_weather_output(current_weather))
+    print(generate_forecast_weather_output(forecast_weather))
