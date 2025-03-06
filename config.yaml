@@ -1,7 +1,0 @@
-weather:
-  lat: 32.93586
-  lon: -96.94499
-  api_key: "5135c1ceb0fe75577096b920b6e8ef9c"
-  units: "metric"
-  num_days: 3
-  base_url: "https://api.openweathermap.org/data/2.5"
