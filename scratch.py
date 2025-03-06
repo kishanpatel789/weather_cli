@@ -6,18 +6,21 @@ from datetime import datetime, timezone, timedelta
 
 import requests
 from dotenv import load_dotenv
+import textwrap
 
 # %%
 load_dotenv()
 LAT = os.environ["LAT"]
 LON = os.environ["LON"]
 API_KEY = os.environ["API_KEY"]
+UNITS = os.environ.get("UNITS", "metric")
+NUM_DAYS = int(os.environ.get("NUM_DAYS", 3))
 BASE_URL = "https://api.openweathermap.org/data/2.5"
 
 dir_data = Path(__file__).parent / "data"
 # %%
 # get current weather
-url = f"{BASE_URL}/weather?lat={LAT}&lon={LON}&appid={API_KEY}&units=metric"
+url = f"{BASE_URL}/weather?lat={LAT}&lon={LON}&appid={API_KEY}&units={UNITS}"
 
 response = requests.get(url)
 response.raise_for_status()
@@ -30,7 +33,7 @@ with open(dir_data / "output_current.json", "w") as f:
 
 # %%
 # get forecast
-url = f"{BASE_URL}/forecast?lat={LAT}&lon={LON}&appid={API_KEY}&units=metric"
+url = f"{BASE_URL}/forecast?lat={LAT}&lon={LON}&appid={API_KEY}&units={UNITS}&cnt={NUM_DAYS*8}"
 
 response2 = requests.get(url)
 response2.raise_for_status()
@@ -49,42 +52,56 @@ with open(dir_data / "output_forecast.json", "r") as f:
 
 # %%
 # extract relevant data
-def process_datetime(data_dt: int, data_tz: int) -> str:
+def process_datetime(data_dt: int, data_tz: int) -> datetime:
     datetime_utc = datetime.fromtimestamp(data_dt, timezone.utc)
     datetime_local = datetime_utc.astimezone(timezone(timedelta(seconds=data_tz)))
     
-    return datetime_local.strftime("%Y-%m-%d %H:%M:%S %Z")
+    return datetime_local
 
 def process_wind(wind: dict) -> str:
     speed_kmh = wind["speed"] / 1000 * 60 * 60 # convert m/s to km/hr
     speed_deg = wind["deg"]
 
-    return f"{round(speed_kmh):,} km/h at {speed_deg} deg"
+    return f"{round(speed_kmh):,} km/h from {speed_deg} deg"
 
-current_weather_output = f"""
-{process_datetime(current_weather["dt"], current_weather["timezone"])}
-{current_weather["weather"][0]["main"]} - {current_weather["weather"][0]["description"]}
-{current_weather["main"]["temp"]} C
-{process_wind(current_weather["wind"])}
-{current_weather["clouds"]["all"]}% cloudy
-#rain and snow"""
+def generate_current_weather_output(w: dict) -> str:
+    output = f"""\
+        {process_datetime(w["dt"], w["timezone"])}
+        {w["weather"][0]["main"]} - {w["weather"][0]["description"]}
+        {round(w["main"]["temp"])}\u00B0C
+        {process_wind(w["wind"])}
+        {w["clouds"]["all"]}% cloudy"""
+    
+    if "rain" in w:
+        output += f"\n{w['rain']['1h']} mm/h rain"
+    if "snow" in w:
+        output += f"\n{w['snow']['1h']} mm/h snow"
 
-print(current_weather_output)
+    return textwrap.dedent(output)
 
-# print(
-#     process_datetime(current_weather["dt"], current_weather["timezone"]),
-#     current_weather["weather"][0]["main"],  # weather condition
-#     current_weather["main"]["temp"],  # temperature
-#     current_weather["main"]["humidity"],  # humidity
-#     # wind
-#     # cloud coverage
-# )
+print(generate_current_weather_output(current_weather))
 
-#%%
-datetime.fromtimestamp(
-)
+def generate_forecast_weather_output(w: dict) -> str:
+    output = ""
+    track_date = None
 
-datetime.utcoffset
+    for rec in w["list"]:
+        rec_datetime = process_datetime(rec["dt"], w["city"]["timezone"])
+        if rec_datetime.date() != track_date:
+            track_date = rec_datetime.date()
+            output += "\n" + track_date.strftime("%a %m.%d")
+
+        line_items = [
+            rec_datetime.strftime("%H:%M"), # hour
+            f"{round(rec['main']['temp'])}\u00B0C", # temp
+            f"{rec['weather'][0]['main']} ({round(rec['pop']*100)}%)", # weather with prep. prob.
+        ]
+        output += "\n" + textwrap.indent(" ".join(line_items), " "*4)
+
+    return textwrap.dedent(output)
+
+print(generate_forecast_weather_output(forecast_weather))
+
 # %%
 # test city search
 url = f"https://api.openweathermap.org/data/2.5/weather?q=Valley+Ranch,TX,US&appid={API_KEY}&units=metric"
