@@ -50,55 +50,74 @@ with open(dir_data / "output_current.json", "r") as f:
 with open(dir_data / "output_forecast.json", "r") as f:
     forecast_weather = json.load(f)
 
+
 # %%
 # extract relevant data
 def process_datetime(data_dt: int, data_tz: int) -> datetime:
     datetime_utc = datetime.fromtimestamp(data_dt, timezone.utc)
     datetime_local = datetime_utc.astimezone(timezone(timedelta(seconds=data_tz)))
-    
+
     return datetime_local
 
+
 def process_wind(wind: dict) -> str:
-    speed_kmh = wind["speed"] / 1000 * 60 * 60 # convert m/s to km/hr
+    speed_kmh = wind["speed"] / 1000 * 60 * 60  # convert m/s to km/hr
     speed_deg = wind["deg"]
 
     return f"{round(speed_kmh):,} km/h from {speed_deg} deg"
 
-def generate_current_weather_output(w: dict) -> str:
-    output = f"""\
-        {process_datetime(w["dt"], w["timezone"])}
-        {w["weather"][0]["main"]} - {w["weather"][0]["description"]}
-        {round(w["main"]["temp"])}\u00B0C
-        {process_wind(w["wind"])}
-        {w["clouds"]["all"]}% cloudy"""
-    
-    if "rain" in w:
-        output += f"\n{w['rain']['1h']} mm/h rain"
-    if "snow" in w:
-        output += f"\n{w['snow']['1h']} mm/h snow"
 
-    return textwrap.dedent(output)
+def format_temp(temp: float) -> str:
+    return f"{round(temp)}\u00b0C"
+
+
+def generate_current_weather_output(w: dict) -> str:
+    line_items = [
+        process_datetime(w["dt"], w["timezone"]).strftime("%Y-%m-%d %H:%M"),  # datetime
+        f"{w['weather'][0]['main']} - {w['weather'][0]['description']}",  # condition
+        format_temp(w["main"]["temp"]),  # temp
+        process_wind(w["wind"]),  # wind
+        f"{w['clouds']['all']}% cloudy",  # cloud coverage
+    ]
+    if "rain" in w:
+        line_items.append(f"{w['rain']['1h']} mm/h rain")  # rain amt
+    if "snow" in w:
+        line_items.append(f"{w['snow']['1h']} mm/h snow")  # snow amt
+
+    return "\n".join(line_items)
+
 
 print(generate_current_weather_output(current_weather))
 
+
+def generate_hour_line_content(rec: dict, rec_datetime: datetime) -> str:
+    hour_content = [
+        rec_datetime.strftime("%H:%M"),  # hour
+        format_temp(rec["main"]["temp"]),  # temp
+        f"{rec['weather'][0]['main']} ({round(rec['pop']*100)}%)",  # weather with prep. prob.
+    ]
+    return " ".join(hour_content)
+
+
 def generate_forecast_weather_output(w: dict) -> str:
-    output = ""
+    line_items = [""]
     track_date = None
 
     for rec in w["list"]:
         rec_datetime = process_datetime(rec["dt"], w["city"]["timezone"])
         if rec_datetime.date() != track_date:
             track_date = rec_datetime.date()
-            output += "\n" + track_date.strftime("%a %m.%d")
+            line_item = (
+                track_date.strftime("%a %m.%d")
+                + " " * 2
+                + generate_hour_line_content(rec, rec_datetime)
+            )
+        else:
+            line_item = " " * 11 + generate_hour_line_content(rec, rec_datetime)
+        line_items.append(line_item)
 
-        line_items = [
-            rec_datetime.strftime("%H:%M"), # hour
-            f"{round(rec['main']['temp'])}\u00B0C", # temp
-            f"{rec['weather'][0]['main']} ({round(rec['pop']*100)}%)", # weather with prep. prob.
-        ]
-        output += "\n" + textwrap.indent(" ".join(line_items), " "*4)
+    return "\n".join(line_items)
 
-    return textwrap.dedent(output)
 
 print(generate_forecast_weather_output(forecast_weather))
 
